@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+build/
+dist/
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# Type/test caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.claude/
+
+# OS cruft
+.DS_Store
+._*
+Thumbs.db
+desktop.ini
+
+# Project-specific: personal data & generated artifacts
+database/users/
+database/calibrations/
+database/models/
+database/processed_previews/
+database/mash/
+
+# But keep metadata files
+!database/label_catalog.json
+!database/channel_labels.json
+
+# Debug reports exported by the GUI
+emg_debug_*.txt
