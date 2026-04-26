@@ -140,6 +140,7 @@ DEFAULT_EVENT_TAIL_ACTIVE_FRACTION = 0.40
 
 
 def sanitize_model_name(raw_name):
+    """Normalize a model name so it is safe to use as a bundle filename."""
     cleaned = "".join(
         char.lower() if char.isalnum() else "_"
         for char in raw_name.strip()
@@ -149,6 +150,7 @@ def sanitize_model_name(raw_name):
 
 
 def sanitize_model_type(raw_model_type):
+    """Normalize a user-facing model type label into an internal model key."""
     normalized = (raw_model_type or "").strip().lower().replace("-", "_").replace(" ", "_")
     normalized = MODEL_TYPE_ALIASES.get(normalized, normalized)
     if normalized not in MODEL_TYPE_DISPLAY_BY_KEY:
@@ -158,14 +160,17 @@ def sanitize_model_type(raw_model_type):
 
 
 def model_type_display_name(raw_model_type):
+    """Return the GUI-friendly display name for a model type key or alias."""
     return MODEL_TYPE_DISPLAY_BY_KEY[sanitize_model_type(raw_model_type)]
 
 
 def model_type_labels():
+    """Return the ordered list of model type labels shown in the GUI."""
     return [display_name for _key, display_name in MODEL_TYPE_CHOICES]
 
 
 def feature_names_for_version(preprocessing_version):
+    """Map a stored preprocessing version to the corresponding feature layout."""
     if preprocessing_version is None:
         return LEGACY_FEATURE_NAMES
     version = int(preprocessing_version)
@@ -177,6 +182,7 @@ def feature_names_for_version(preprocessing_version):
 
 
 def feature_names_for_bundle(bundle):
+    """Return the feature names expected by a saved model bundle."""
     feature_names = bundle.get("feature_names")
     if feature_names:
         return tuple(feature_names)
@@ -184,6 +190,7 @@ def feature_names_for_bundle(bundle):
 
 
 def _build_classifier(mode, model_type, train_size=None):
+    """Instantiate the requested scikit-learn classifier with project defaults."""
     safe_model_type = sanitize_model_type(model_type)
     effective_train_size = max(1, int(train_size or 1))
 
@@ -230,6 +237,7 @@ def _build_classifier(mode, model_type, train_size=None):
 
 
 def normalize_model_channels(selected_channels=None, channel=DEFAULT_CHANNEL):
+    """Normalize channel selection and return both the list and its folder key."""
     channels = normalize_channel_selection(selected_channels=selected_channels, channel=channel)
     if not channels:
         channels = [DEFAULT_CHANNEL]
@@ -237,21 +245,25 @@ def normalize_model_channels(selected_channels=None, channel=DEFAULT_CHANNEL):
 
 
 def parse_channel_group(channel_group):
+    """Parse a stored channel-group key like ``a0_a1`` into channel ids."""
     if isinstance(channel_group, str) and channel_group in CHANNEL_NAMES:
         return [channel_group]
     return normalize_channel_selection(selected_channels=(channel_group or "").split("_"))
 
 
 def model_dir_for_mode(mode, channel=DEFAULT_CHANNEL, selected_channels=None):
+    """Return the directory that stores model bundles for one mode/channel set."""
     _channels, channel_key = normalize_model_channels(selected_channels=selected_channels, channel=channel)
     return MODEL_ROOT / mode / channel_key
 
 
 def model_path_for_name(mode, model_name, channel=DEFAULT_CHANNEL, selected_channels=None):
+    """Return the bundle path for a named model."""
     return model_dir_for_mode(mode, channel=channel, selected_channels=selected_channels) / f"{sanitize_model_name(model_name)}.joblib"
 
 
 def _model_confusion_heatmap_path(model_path, model_type=None):
+    """Return the PNG path used for a model's confusion-matrix heatmap."""
     suffix = "_confusion_matrix"
     if model_type:
         suffix = f"_{sanitize_model_type(model_type)}{suffix}"
@@ -259,6 +271,7 @@ def _model_confusion_heatmap_path(model_path, model_type=None):
 
 
 def _clear_model_confusion_heatmaps(model_path):
+    """Delete any confusion-matrix images associated with ``model_path``."""
     heatmap_paths = [model_path.with_name(f"{model_path.stem}_confusion_matrix.png")]
     heatmap_paths.extend(model_path.parent.glob(f"{model_path.stem}_*_confusion_matrix.png"))
     for heatmap_path in heatmap_paths:
@@ -270,6 +283,7 @@ def _clear_model_confusion_heatmaps(model_path):
 
 
 def _matching_model_paths(mode, channel=DEFAULT_CHANNEL, selected_channels=None):
+    """Find bundle paths whose channel groups overlap the requested channels."""
     requested_channels, requested_key = normalize_model_channels(selected_channels=selected_channels, channel=channel)
     requested_set = set(requested_channels)
     mode_root = MODEL_ROOT / mode
@@ -293,6 +307,7 @@ def _matching_model_paths(mode, channel=DEFAULT_CHANNEL, selected_channels=None)
 
 
 def list_saved_models(mode, channel=DEFAULT_CHANNEL, selected_channels=None):
+    """List saved model names visible for the requested mode/channel selection."""
     model_names = set()
 
     for model_path in _matching_model_paths(mode, channel=channel, selected_channels=selected_channels):
@@ -320,6 +335,7 @@ def delete_named_model(mode, model_name):
 
 
 def load_named_model(mode, model_name, channel=DEFAULT_CHANNEL, selected_channels=None):
+    """Load a saved model bundle, falling back to overlapping channel directories."""
     model_path = model_path_for_name(mode, model_name, channel=channel, selected_channels=selected_channels)
     if model_path.exists():
         return joblib.load(model_path)
@@ -333,6 +349,7 @@ def load_named_model(mode, model_name, channel=DEFAULT_CHANNEL, selected_channel
 
 
 def _estimate_sampling_rate(time_s, default_fs=200.0):
+    """Estimate sampling rate from timestamps, falling back when timing is unusable."""
     # Use float64 — Arduino/Python wallclock timestamps are large (~1.7e9)
     # and float32 silently rounds adjacent samples to the same value,
     # yielding dt=0 and forcing this function to fall back to default_fs.
@@ -345,6 +362,7 @@ def _estimate_sampling_rate(time_s, default_fs=200.0):
 
 
 def _event_sample_counts(fs, min_seconds=DEFAULT_EVENT_MIN_SECONDS, pad_seconds=DEFAULT_EVENT_PAD_SECONDS):
+    """Convert event-duration thresholds from seconds into sample counts."""
     min_samples = max(int(round(fs * min_seconds)), 8)
     pad_samples = max(int(round(fs * pad_seconds)), 2)
     return min_samples, pad_samples
@@ -363,6 +381,7 @@ def _channel_calibration_is_sane(channel_calibration):
 
 
 def _baseline_mean(channel_calibration, signal):
+    """Return the baseline voltage used to center one signal window."""
     # ALWAYS estimate the baseline from the current signal (per-window
     # 10th percentile), NEVER from a global calibration's voltage_mean.
     #
@@ -385,17 +404,20 @@ def _baseline_mean(channel_calibration, signal):
 
 
 def _noise_std(channel_calibration):
+    """Return a usable per-channel noise estimate, or ``None`` if unavailable."""
     if not _channel_calibration_is_sane(channel_calibration):
         return None
     return max(float(channel_calibration.get("voltage_std", 0.0)), DEFAULT_MIN_NOISE_STD)
 
 
 def center_signal(signal, channel_calibration=None):
+    """Subtract the chosen baseline from a raw EMG signal."""
     signal = np.asarray(signal, dtype=np.float32)
     return signal - _baseline_mean(channel_calibration, signal)
 
 
 def _smooth_envelope(centered_signal):
+    """Compute a lightly smoothed absolute-value envelope for event detection."""
     centered_signal = np.asarray(centered_signal, dtype=np.float32)
     if len(centered_signal) < 3:
         return np.abs(centered_signal)
@@ -406,6 +428,7 @@ def _smooth_envelope(centered_signal):
 
 
 def _event_threshold(channel_calibration, k=3.0, fallback_threshold=DEFAULT_FALLBACK_EVENT_THRESHOLD):
+    """Return the activity threshold used to build an event mask."""
     noise_std = _noise_std(channel_calibration)
     if noise_std is None:
         return float(fallback_threshold)
@@ -413,6 +436,7 @@ def _event_threshold(channel_calibration, k=3.0, fallback_threshold=DEFAULT_FALL
 
 
 def _largest_active_slice(event_mask, min_samples=20, pad_samples=0):
+    """Return the longest contiguous active run in ``event_mask`` as a slice."""
     indices = np.flatnonzero(event_mask)
     if len(indices) < min_samples:
         return None
@@ -442,6 +466,7 @@ def _largest_active_slice(event_mask, min_samples=20, pad_samples=0):
 
 
 def _latest_active_slice(event_mask, min_samples=20, pad_samples=0):
+    """Return the most recent contiguous active run in ``event_mask`` as a slice."""
     indices = np.flatnonzero(event_mask)
     if len(indices) < min_samples:
         return None
@@ -472,6 +497,7 @@ def _latest_active_slice(event_mask, min_samples=20, pad_samples=0):
 
 def _event_mask_for_signal(signal, channel_calibration=None, k=3.0,
                            fallback_threshold=DEFAULT_FALLBACK_EVENT_THRESHOLD):
+    """Center a signal and return ``(centered_signal, active_mask)``."""
     centered_signal = center_signal(signal, channel_calibration)
     threshold = _event_threshold(channel_calibration, k=k, fallback_threshold=fallback_threshold)
     return centered_signal, _smooth_envelope(centered_signal) > threshold
@@ -481,6 +507,7 @@ def _analyze_feature_window(signals, channel_calibrations=None, k=3.0,
                             min_samples=20, pad_samples=0,
                             fallback_threshold=DEFAULT_FALLBACK_EVENT_THRESHOLD,
                             slice_strategy="largest"):
+    """Analyze one multi-channel window and return centered signals plus an event slice."""
     if not signals:
         return [], np.zeros(0, dtype=bool), None
 
@@ -518,6 +545,7 @@ def prepare_feature_signals(signals, channel_calibrations=None, k=3.0,
                             min_samples=20, pad_samples=0,
                             fallback_threshold=DEFAULT_FALLBACK_EVENT_THRESHOLD,
                             keep_full_window=False):
+    """Prepare centered per-channel signals for feature extraction."""
     centered_signals, _combined_mask, event_slice = _analyze_feature_window(
         signals,
         channel_calibrations=channel_calibrations,
@@ -580,6 +608,7 @@ def analyze_model_window(signals, channel_calibrations=None, fs=200.0, k=3.0,
 
 
 def _zero_crossing_count(signal, noise_std=None):
+    """Count zero crossings while suppressing tiny noise-driven sign changes."""
     if len(signal) < 2:
         return 0.0
 
@@ -590,6 +619,7 @@ def _zero_crossing_count(signal, noise_std=None):
 
 
 def _slope_sign_change_count(signal, noise_std=None):
+    """Count slope-sign changes with a simple noise-aware magnitude threshold."""
     if len(signal) < 3:
         return 0.0
 
@@ -601,6 +631,7 @@ def _slope_sign_change_count(signal, noise_std=None):
 
 
 def _willison_amplitude_count(signal, noise_std=None):
+    """Count adjacent differences whose magnitude exceeds the noise threshold."""
     if len(signal) < 2:
         return 0.0
 
@@ -609,12 +640,14 @@ def _willison_amplitude_count(signal, noise_std=None):
 
 
 def _log_detector(signal):
+    """Return the log-detector feature for one centered signal."""
     if len(signal) == 0:
         return 0.0
     return float(np.exp(np.mean(np.log(np.abs(signal) + 1e-6))))
 
 
 def _autoregressive_coefficients(signal, order=4):
+    """Fit a simple autoregressive model and return the first ``order`` coefficients."""
     signal = np.asarray(signal, dtype=np.float32)
     if len(signal) <= order:
         return np.zeros(order, dtype=np.float32)
@@ -746,6 +779,7 @@ def extract_feature_vector(signal, noise_std=None, feature_names=None):
 
 
 def extract_single_features(signal, noise_std=None, feature_names=None):
+    """Alias for single-channel feature extraction used by training and live prediction."""
     return extract_feature_vector(signal, noise_std=noise_std, feature_names=feature_names)
 
 
@@ -761,25 +795,31 @@ class Conv1DClassifier:
     """Compatibility placeholder for retired Conv1D models."""
 
     def __init__(self, *_args, **_kwargs):
+        """Fail immediately when code tries to instantiate a retired Conv1D model."""
         raise ValueError(
             "Conv1D models have been retired from this project. "
             "Train a feature-based model instead."
         )
 
     def fit(self, *_args, **_kwargs):
+        """Reject legacy Conv1D training calls."""
         raise ValueError("Conv1D training is no longer supported.")
 
     def predict(self, *_args, **_kwargs):
+        """Reject legacy Conv1D inference calls."""
         raise ValueError("Legacy Conv1D models are no longer supported.")
 
     def predict_proba(self, *_args, **_kwargs):
+        """Reject legacy Conv1D probability requests."""
         raise ValueError("Legacy Conv1D models are no longer supported.")
 
     def fine_tune(self, *_args, **_kwargs):
+        """Reject legacy Conv1D fine-tuning calls."""
         raise ValueError("Conv1D fine-tuning is no longer supported.")
 
 
 def _load_channel_capture(csv_file):
+    """Load one single-channel capture CSV into the training payload format."""
     df = pd.read_csv(csv_file)
     if len(df) < 10:
         return None
@@ -792,6 +832,7 @@ def _load_channel_capture(csv_file):
 
 
 def _load_group_capture(record, selected_channels):
+    """Load one synchronized multi-channel capture record into aligned channel payloads."""
     channel_payloads = {}
     label = None
 
@@ -815,6 +856,7 @@ def _load_group_capture(record, selected_channels):
 
 
 def make_windows(signal, fs, window_seconds, stride_seconds):
+    """Split a 1-D signal into fixed-size overlapping windows."""
     window_size = int(window_seconds * fs)
     stride_size = int(stride_seconds * fs)
 
@@ -831,6 +873,7 @@ def make_windows(signal, fs, window_seconds, stride_seconds):
 
 
 def _safe_split(X, y, test_size=0.2, groups=None, random_state=42):
+    """Split training data while preferring group-aware holdout when possible."""
     labels, counts = np.unique(y, return_counts=True)
     if len(labels) < 2:
         raise ValueError("Need at least two different labels to train a model.")
@@ -860,6 +903,7 @@ def _safe_split(X, y, test_size=0.2, groups=None, random_state=42):
 
 
 def _format_confusion_matrix(labels, matrix, title=None, note=None):
+    """Render a confusion matrix as aligned plain text for reports/debug output."""
     label_names = [str(label) for label in labels]
     matrix = np.asarray(matrix, dtype=int)
     if matrix.size == 0 or not label_names:
@@ -896,6 +940,7 @@ def _format_confusion_matrix(labels, matrix, title=None, note=None):
 
 
 def _save_confusion_matrix_heatmap(labels, matrix, output_path, title=None):
+    """Render and save a confusion-matrix heatmap PNG."""
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure
 
@@ -942,6 +987,7 @@ def _save_confusion_matrix_heatmap(labels, matrix, output_path, title=None):
 
 
 def _save_training_confusion_heatmaps(bundle, model_path):
+    """Generate confusion-matrix PNGs for the saved bundle and benchmarks."""
     _clear_model_confusion_heatmaps(model_path)
 
     heatmap_path = _model_confusion_heatmap_path(model_path)
@@ -974,6 +1020,7 @@ def _save_training_confusion_heatmaps(bundle, model_path):
 
 
 def _evaluate_split(mode, model_type, X_train, X_test, y_train, y_test, labels=None):
+    """Train one classifier on a holdout split and return evaluation artifacts."""
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
@@ -1002,6 +1049,7 @@ def _evaluate_split(mode, model_type, X_train, X_test, y_train, y_test, labels=N
 
 
 def _benchmark_model_type(mode, model_type, X, y, groups=None, repeats=AUTO_MODEL_SELECTION_SPLITS):
+    """Evaluate one model type across repeated holdout splits."""
     safe_model_type = sanitize_model_type(model_type)
     labels = sorted(np.unique(y).tolist())
     split_metrics = []
@@ -1050,6 +1098,7 @@ def _benchmark_model_type(mode, model_type, X, y, groups=None, repeats=AUTO_MODE
 
 
 def _format_benchmark_summary(benchmark_results, selected_model_type):
+    """Format the auto-model-selection leaderboard for the training report."""
     lines = [
         "Auto model selection (avg repeated holdout)",
         "-" * 40,
@@ -1067,6 +1116,7 @@ def _format_benchmark_summary(benchmark_results, selected_model_type):
 
 
 def _format_benchmark_confusion_matrices(benchmark_results):
+    """Format per-model confusion matrices for the training report."""
     if not benchmark_results:
         return None
     lines = [
@@ -1082,6 +1132,7 @@ def _format_benchmark_confusion_matrices(benchmark_results):
 
 
 def _source_user_name(source):
+    """Infer the user name associated with a training source item."""
     try:
         if isinstance(source, Path):
             csv_file = source
@@ -1094,6 +1145,7 @@ def _source_user_name(source):
 
 
 def _resolve_sample_calibration(calibration, source):
+    """Resolve either a single calibration or a per-user calibration mapping."""
     if calibration is None:
         return None
     if isinstance(calibration, dict) and "channels" in calibration:
@@ -1110,6 +1162,7 @@ def _resolve_sample_calibration(calibration, source):
 
 
 def trim_to_events(signal, channel_calibration, k=3.0, min_samples=20):
+    """Return the detected active portion of a signal, or the centered full signal."""
     prepared_signals, has_event = prepare_feature_signals(
         [signal],
         channel_calibrations=[channel_calibration],
@@ -1124,6 +1177,7 @@ def trim_to_events(signal, channel_calibration, k=3.0, min_samples=20):
 
 
 def is_event_window(signal, channel_calibration, k=3.0):
+    """Return ``True`` when the signal contains a detectable active event."""
     centered_signal, event_mask = _event_mask_for_signal(
         signal,
         channel_calibration=channel_calibration,
@@ -1135,6 +1189,7 @@ def is_event_window(signal, channel_calibration, k=3.0):
 
 
 def _record_channels(record):
+    """Extract ordered channel ids from a grouped capture record."""
     if not isinstance(record, dict):
         return []
 
@@ -1290,6 +1345,7 @@ def prepare_capture_preview(record, calibration=None, k=None):
 
 
 def export_processed_capture_preview(record, calibration=None, output_dir=None, k=None):
+    """Export the processed segment and feature row used for one capture preview."""
     preview = prepare_capture_preview(record, calibration=calibration, k=k)
     if preview["processed_sample_count"] < 1:
         raise ValueError("No processed segment was found for this capture. It would be skipped during training.")
@@ -1346,6 +1402,7 @@ def export_processed_capture_preview(record, calibration=None, output_dir=None, 
 
 
 def _train_feature_bundle(mode, X, y, groups, dataset_source, model_type, feature_names, config):
+    """Train or auto-select a feature model and package the saved bundle dict."""
     safe_requested_model_type = sanitize_model_type(model_type)
     all_labels = sorted(np.unique(y).tolist())
     benchmark_results = None
@@ -1432,6 +1489,7 @@ def _train_feature_bundle(mode, X, y, groups, dataset_source, model_type, featur
 
 
 def _single_training_bundle(training_source, dataset_source, selected_channels, model_type, calibration=None):
+    """Build a single-gesture training bundle from raw stored captures."""
     X = []
     y = []
     groups = []
@@ -1716,6 +1774,7 @@ def continue_training_from_base(mode, base_model_name, new_model_name,
 
 
 def _majority_vote(history, default_value):
+    """Return the most common label in ``history`` or ``default_value`` if empty."""
     if not history:
         return default_value
     counter = Counter(history)
@@ -1723,6 +1782,7 @@ def _majority_vote(history, default_value):
 
 
 def _tail_window_slice(time_signal, window_seconds):
+    """Return the slice covering the most recent ``window_seconds`` of timestamps."""
     if window_seconds is None or window_seconds <= 0 or len(time_signal) == 0:
         return slice(0, len(time_signal))
 
@@ -1741,6 +1801,7 @@ class LivePredictor:
     """
 
     def __init__(self, bundle, calibration=None, display_threshold=0.70):
+        """Create a live predictor from a saved bundle and optional calibration."""
         self.bundle = bundle
         self.mode = bundle["mode"]
         self.classifier = bundle["classifier"]
@@ -1769,6 +1830,7 @@ class LivePredictor:
         self.display_threshold = display_threshold
 
     def reset(self):
+        """Reset transient prediction state while keeping the loaded bundle/config."""
         self.pred_history.clear()
         self.raw_prediction = "N/A"
         self.display_prediction = "idle"
@@ -1779,26 +1841,32 @@ class LivePredictor:
         self.low_conf_streak = 0
 
     def set_calibration(self, calibration):
+        """Swap in a new calibration blob for subsequent predictions."""
         self.calibration = calibration
         self.event_k = float((calibration or {}).get("event_threshold_k", 3.0))
 
     def set_display_threshold(self, threshold):
+        """Update the confidence threshold used for the displayed label."""
         self.display_threshold = float(threshold)
 
     def input_channels(self):
+        """Return the channel ids expected by the loaded bundle."""
         channels = self.bundle.get("selected_channels")
         if channels:
             return normalize_channel_selection(selected_channels=channels)
         return parse_channel_group(self.bundle.get("channel")) or [DEFAULT_CHANNEL]
 
     def _channel_calibrations(self):
+        """Return per-channel calibration dicts aligned with ``input_channels()``."""
         cal_channels = (self.calibration or {}).get("channels", {})
         return [cal_channels.get(ch) for ch in self.input_channels()]
 
     def _feature_names(self):
+        """Return the feature layout expected by the loaded model bundle."""
         return feature_names_for_bundle(self.bundle)
 
     def _set_idle(self):
+        """Reset display state to idle and return the resulting snapshot."""
         self.is_idle = True
         self.pred_history.clear()
         self.raw_prediction = "idle"
@@ -1808,6 +1876,7 @@ class LivePredictor:
         return self.snapshot()
 
     def _collect_live_window(self, buffers_by_channel, analysis_window_seconds):
+        """Collect and align the most recent live buffer window across channels."""
         windowed_times = []
         windowed_signals = []
 
@@ -1846,6 +1915,7 @@ class LivePredictor:
         return np.asarray(aligned_time, dtype=np.float64), aligned_signals
 
     def _run_classifier(self, prepared_signals, noise_stds, feature_extractor):
+        """Extract features, scale them, and run the saved classifier once."""
         feature_names = self._feature_names()
         features = np.concatenate(
             [
@@ -1866,6 +1936,7 @@ class LivePredictor:
         return prediction, confidence
 
     def _commit_prediction(self, prediction, confidence):
+        """Update predictor state after one classifier result and return a snapshot."""
         self.is_idle = False
         self.raw_prediction = prediction
         self.confidence = confidence
@@ -1898,9 +1969,11 @@ class LivePredictor:
         return self.snapshot()
 
     def predict(self, buffers_by_channel):
+        """Run one live-prediction step against the current channel buffers."""
         return self._predict_single(buffers_by_channel)
 
     def _predict_single(self, buffers_by_channel):
+        """Run the end-to-end live inference pipeline for one polling cycle."""
         analysis_window_seconds = max(
             self.config.get("analysis_window_seconds", DEFAULT_SINGLE_ANALYSIS_WINDOW_SECONDS),
             self.config.get("buffer_seconds", DEFAULT_SINGLE_ANALYSIS_WINDOW_SECONDS),
@@ -2151,6 +2224,7 @@ class LivePredictor:
         return report
 
     def snapshot(self):
+        """Return the minimal GUI-facing prediction state."""
         return {
             "display_prediction": self.display_prediction,
             "raw_prediction": self.raw_prediction,
@@ -2161,12 +2235,14 @@ class LivePredictor:
 
     @property
     def predict_every_seconds(self):
+        """Return the configured minimum interval between live predictions."""
         return self.config.get("predict_every_seconds", 0.1)
 
 
 def fine_tune_model(base_bundle_path, mode, user_name, model_name,
                     selected_channels=None, channel=DEFAULT_CHANNEL,
                     epochs=20, lr=5e-4):
+    """Fail fast for the retired Conv1D fine-tuning path."""
     raise ValueError(
         "Conv1D fine-tuning has been removed. "
         "Train a personal feature-based model directly from the selected user's data instead."

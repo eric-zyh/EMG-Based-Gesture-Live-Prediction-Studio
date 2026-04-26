@@ -34,12 +34,14 @@ DEFAULT_LABELS = {
 # ---------------------------------------------------------------------------
 
 def sanitize_user_name(raw_name):
+    """Normalize a user name so it is safe to use in directory names."""
     cleaned = re.sub(r"[^a-z0-9_]", "_", raw_name.strip().lower())
     cleaned = re.sub(r"_+", "_", cleaned).strip("_")
     return cleaned or f"user_{int(time.time())}"
 
 
 def sanitize_label_name(raw_name):
+    """Normalize a gesture label and reject empty results."""
     cleaned = re.sub(r"[^a-z0-9_]", "_", raw_name.strip().lower())
     cleaned = re.sub(r"_+", "_", cleaned).strip("_")
     if not cleaned:
@@ -48,6 +50,7 @@ def sanitize_label_name(raw_name):
 
 
 def sanitize_channel_name(raw_name):
+    """Validate and normalize a raw channel id such as ``a0`` or ``a1``."""
     cleaned = raw_name.strip().lower()
     if cleaned not in CHANNEL_NAMES:
         raise ValueError(
@@ -77,20 +80,24 @@ def normalize_channel_selection(selected_channels=None, channel=DEFAULT_CHANNEL)
 # ---------------------------------------------------------------------------
 
 def _mode_dir_name(mode):
+    """Translate an app mode key into the corresponding on-disk folder name."""
     if mode not in MODE_DIR_MAP:
         raise ValueError(f"Unknown mode: {mode}. Valid modes: {', '.join(MODE_DIR_MAP)}")
     return MODE_DIR_MAP[mode]
 
 
 def _labels_file(mode):
+    """Return the per-mode JSON file that stores user-editable labels."""
     return DB_ROOT / "labels" / f"{mode}.json"
 
 
 def _label_catalog_file():
+    """Return the shared fallback label catalog file."""
     return DB_ROOT / "label_catalog.json"
 
 
 def _merge_labels(preferred, fallback):
+    """Merge two label iterables while preserving order and removing duplicates."""
     labels = []
     for label in list(preferred or []) + list(fallback or []):
         if label and label not in labels:
@@ -99,6 +106,7 @@ def _merge_labels(preferred, fallback):
 
 
 def _load_labels(mode):
+    """Load labels for ``mode`` from disk, falling back to defaults when needed."""
     path = _labels_file(mode)
     if path.exists():
         try:
@@ -118,20 +126,24 @@ def _load_labels(mode):
 
 
 def _save_labels(mode, labels):
+    """Persist the ordered label list for ``mode``."""
     path = _labels_file(mode)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(labels, indent=2))
 
 
 def _user_mode_dir(user_name, mode):
+    """Return the root directory for one user's captures in a given mode."""
     return DB_ROOT / "users" / sanitize_user_name(user_name) / _mode_dir_name(mode)
 
 
 def _user_channel_dir(user_name, mode, channel):
+    """Return the capture directory for one user/mode/channel combination."""
     return _user_mode_dir(user_name, mode) / sanitize_channel_name(channel)
 
 
 def _read_csv_label(csv_file):
+    """Read the first ``label`` value from a capture CSV, or ``""`` on failure."""
     try:
         with csv_file.open("r", newline="") as f:
             reader = csv_mod.DictReader(f)
@@ -147,10 +159,12 @@ def _read_csv_label(csv_file):
 # ---------------------------------------------------------------------------
 
 def list_labels_for_mode(mode):
+    """Return the ordered label list available for the given collection mode."""
     return _load_labels(mode)
 
 
 def add_label_to_mode(mode, raw_label):
+    """Add a sanitized label to ``mode`` if it is not already present."""
     label = sanitize_label_name(raw_label)
     labels = _load_labels(mode)
     if label not in labels:
@@ -160,6 +174,7 @@ def add_label_to_mode(mode, raw_label):
 
 
 def remove_label_from_mode(mode, raw_label):
+    """Remove a label from ``mode`` while protecting the built-in ``rest`` label."""
     label = sanitize_label_name(raw_label)
     labels = _load_labels(mode)
     if label not in labels:
@@ -176,10 +191,12 @@ def remove_label_from_mode(mode, raw_label):
 # ---------------------------------------------------------------------------
 
 def _channel_labels_file():
+    """Return the JSON file that stores user-defined channel display names."""
     return DB_ROOT / "channel_labels.json"
 
 
 def _load_channel_labels():
+    """Load channel display names from disk, returning an empty mapping on failure."""
     path = _channel_labels_file()
     if path.exists():
         try:
@@ -190,6 +207,7 @@ def _load_channel_labels():
 
 
 def _save_channel_labels(labels):
+    """Persist the channel-display-name mapping."""
     path = _channel_labels_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(labels, indent=2))
@@ -233,6 +251,7 @@ def channel_display_name(channel):
 # ---------------------------------------------------------------------------
 
 def list_available_channels(mode, selected_users=None):
+    """List channels that have at least one capture for the requested users/mode."""
     channels = set()
     users_root = DB_ROOT / "users"
     if not users_root.exists():
@@ -259,6 +278,7 @@ def list_available_channels(mode, selected_users=None):
 
 
 def list_available_users(mode, selected_channels=None):
+    """List users who have at least one capture in ``mode`` on the requested channels."""
     users = []
     users_root = DB_ROOT / "users"
     if not users_root.exists():
@@ -292,6 +312,7 @@ def list_available_users(mode, selected_channels=None):
 
 
 def list_available_labels(mode, selected_users=None, selected_channels=None):
+    """List labels observed in stored CSV captures for the requested filters."""
     labels = set()
     users_root = DB_ROOT / "users"
     if not users_root.exists():
@@ -331,6 +352,7 @@ def list_available_labels(mode, selected_users=None, selected_channels=None):
 
 
 def list_data_files(mode, selected_users=None, selected_labels=None, selected_channels=None):
+    """Return capture CSV paths filtered by mode, user, label, and channel."""
     files = []
     users_root = DB_ROOT / "users"
     if not users_root.exists():
@@ -426,6 +448,7 @@ def list_capture_groups(mode, selected_users=None, selected_labels=None, selecte
 
 
 def list_user_capture_records(user_name):
+    """Return grouped capture records for one user across every supported mode."""
     safe_user = sanitize_user_name(user_name)
     user_root = DB_ROOT / "users" / safe_user
     if not user_root.exists():
@@ -474,6 +497,7 @@ def list_user_capture_records(user_name):
 # ---------------------------------------------------------------------------
 
 def next_shared_capture_index(user_name, mode, label, channels):
+    """Return the next numeric capture suffix for a synchronized capture group."""
     safe_user = sanitize_user_name(user_name)
     max_index = 0
     for channel in channels:
@@ -522,6 +546,7 @@ def write_capture(rows, user_name, mode, label, channel, filename=None):
 # ---------------------------------------------------------------------------
 
 def clear_user_data(user_name):
+    """Delete all stored CSV captures for one user and prune empty directories."""
     safe_user = sanitize_user_name(user_name)
     user_dir = DB_ROOT / "users" / safe_user
 
@@ -646,6 +671,7 @@ def infer_calibration_from_rest_data(user_name):
 
 
 def mash_database():
+    """Copy every stored capture into a single merged tree grouped by mode/channel."""
     mash_root = DB_ROOT / "mash"
     counts = {mode: {ch: 0 for ch in CHANNEL_NAMES} for mode in MODE_DIR_MAP}
 

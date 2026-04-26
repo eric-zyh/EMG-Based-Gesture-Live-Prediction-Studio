@@ -184,6 +184,7 @@ class EMGCollectorGUI:
     """
 
     def __init__(self, root):
+        """Initialize the Tk controller, shared state, and recurring callbacks."""
         self.root = root
         self.root.title("EMG Data System")
         self.root.geometry("1400x860")
@@ -321,6 +322,7 @@ class EMGCollectorGUI:
     # Page management
     # ---------------------------------------------------------------
     def _build_pages(self):
+        """Create every top-level page frame used by the application."""
         self.container = ttk.Frame(self.root)
         self.container.pack(fill="both", expand=True)
 
@@ -333,6 +335,7 @@ class EMGCollectorGUI:
         self._build_user_data_page()
 
     def _show_page(self, name):
+        """Switch the visible page and trigger any page-specific refreshes."""
         for page in self.pages.values():
             page.pack_forget()
         self.pages[name].pack(fill="both", expand=True)
@@ -342,6 +345,7 @@ class EMGCollectorGUI:
             self._refresh_channel_labels()
 
     def _build_log_panel(self, parent, page_name):
+        """Create a reusable scrolling log panel for one page."""
         frame = ttk.LabelFrame(parent, text="Log", padding=4)
         frame.pack(fill="x", side="bottom", pady=(4, 0))
         log_text = tk.Text(frame, height=5, wrap="word", font=("Courier", 10), state="disabled",
@@ -354,6 +358,7 @@ class EMGCollectorGUI:
         return frame
 
     def _log(self, message, level="INFO"):
+        """Append a timestamped message to all registered page logs."""
         timestamp = time.strftime("%H:%M:%S")
         line = f"[{timestamp}] [{level}] {message}\n"
         for widget in self.log_widgets.values():
@@ -368,6 +373,7 @@ class EMGCollectorGUI:
     @staticmethod
     def _make_card_button(parent, text, command,
                           font=("Helvetica", 16, "bold"), pady=18):
+        """Create a clickable card-style button that behaves consistently on macOS."""
         bg, fg, hover_bg = "#e0e0e0", "#1a1a1a", "#c8c8c8"
         frame = tk.Frame(parent, bg=bg, cursor="hand2", bd=1,
                          highlightthickness=1, highlightbackground="#999")
@@ -384,6 +390,7 @@ class EMGCollectorGUI:
     # HOME PAGE
     # ---------------------------------------------------------------
     def _build_home_page(self):
+        """Build the landing page with navigation plus shared metadata panels."""
         page = ttk.Frame(self.container, padding=30)
         self.pages["home"] = page
 
@@ -457,6 +464,7 @@ class EMGCollectorGUI:
                    command=self._delete_home_model).pack(fill="x", pady=(6, 0))
 
     def _refresh_known_users(self):
+        """Refresh the home-page user list from stored captures."""
         known = sorted(list_available_users("single"))
         cur = self.user_name_var.get().strip()
         if cur and cur not in known:
@@ -469,6 +477,7 @@ class EMGCollectorGUI:
                 self.home_user_listbox.insert("end", u)
 
     def _refresh_home_models(self):
+        """Refresh the saved-model list shown on the home page."""
         if not hasattr(self, "home_model_listbox"):
             return
         self.home_model_listbox.delete(0, "end")
@@ -488,6 +497,7 @@ class EMGCollectorGUI:
             self.home_model_listbox.insert("end", "(no models trained yet)")
 
     def _delete_home_model(self):
+        """Delete the model selected in the home-page listbox."""
         sel = self.home_model_listbox.curselection()
         if not sel:
             messagebox.showinfo("Select model", "Click a model in the list first.")
@@ -506,6 +516,7 @@ class EMGCollectorGUI:
         messagebox.showinfo("Deleted", f"Model '{name}' deleted ({deleted} file(s)).")
 
     def _refresh_channel_labels(self):
+        """Refresh editable per-channel display names on the home page."""
         if not hasattr(self, "ch_label_listbox"):
             return
         self.ch_label_listbox.delete(0, "end")
@@ -518,6 +529,7 @@ class EMGCollectorGUI:
                 self.ch_label_listbox.insert("end", f"{ch}  (not labeled)")
 
     def _set_channel_label(self):
+        """Persist a new display name for the currently selected channel."""
         sel = self.ch_label_listbox.curselection()
         if not sel:
             messagebox.showinfo("Select channel", "Click a channel in the list first.")
@@ -538,6 +550,7 @@ class EMGCollectorGUI:
         self._refresh_channel_labels()
 
     def _remove_channel_label(self):
+        """Remove any custom display name for the currently selected channel."""
         sel = self.ch_label_listbox.curselection()
         if not sel:
             messagebox.showinfo("Select channel", "Click a channel in the list first.")
@@ -553,6 +566,7 @@ class EMGCollectorGUI:
     # TRAINING MENU PAGE (choose Single / Guided)
     # ---------------------------------------------------------------
     def _build_training_menu_page(self):
+        """Build the page that lets the user choose a collection workflow."""
         page = ttk.Frame(self.container, padding=30)
         self.pages["training_menu"] = page
 
@@ -581,6 +595,7 @@ class EMGCollectorGUI:
     # COLLECTION PAGE (3-column: controls | plot | data)
     # ---------------------------------------------------------------
     def _build_collection_page(self):
+        """Build the collection page with controls, live plot, and capture history."""
         page = ttk.Frame(self.container)
         self.pages["collection"] = page
 
@@ -722,6 +737,7 @@ class EMGCollectorGUI:
     # TRAINING PAGE (model building)
     # ---------------------------------------------------------------
     def _build_training_page(self):
+        """Build the model-training page and its base/fine-tune controls."""
         page = ttk.Frame(self.container, padding=16)
         self.pages["model_training"] = page
 
@@ -830,6 +846,7 @@ class EMGCollectorGUI:
     # TESTING PAGE
     # ---------------------------------------------------------------
     def _build_testing_page(self):
+        """Build the live-testing page with model loading and prediction UI."""
         page = ttk.Frame(self.container, padding=16)
         self.pages["testing"] = page
 
@@ -963,12 +980,14 @@ class EMGCollectorGUI:
     # Navigation actions
     # ---------------------------------------------------------------
     def _go_training_menu(self):
+        """Navigate to the training-menu page after basic input validation."""
         if not self.user_name_var.get().strip():
             messagebox.showerror("Missing user", "Please enter a user name first.")
             return
         self._show_page("training_menu")
 
     def _go_testing(self):
+        """Open the testing page, connect serial, and preload calibration state."""
         port = self.port_var.get().strip()
         if not port:
             messagebox.showerror("Missing port", "Select a serial port first.")
@@ -995,10 +1014,12 @@ class EMGCollectorGUI:
         self._log(f"Testing session started on port {port}. ({cal_info})")
 
     def _go_model_training(self):
+        """Open the model-training page after refreshing selectors."""
         self._refresh_all_training()
         self._show_page("model_training")
 
     def _start_collection(self, mode):
+        """Connect serial and enter the requested data-collection workflow."""
         if serial is None:
             messagebox.showerror("Missing dependency", f"pyserial is required.\n\n{SERIAL_IMPORT_ERROR}")
             return
@@ -1052,6 +1073,7 @@ class EMGCollectorGUI:
         self._log(f"Collection started: user={self.session_user}, mode={mode_text}, port={port}.")
 
     def _stop_collection(self):
+        """Abort collection mode, close serial, and return to the workflow menu."""
         self._reset_capture_state()
         self._reset_guided_state()
         self._reset_plot_buffers()
@@ -1064,6 +1086,7 @@ class EMGCollectorGUI:
         self._show_page("training_menu")
 
     def _stop_testing(self):
+        """Stop live prediction, close serial, and return to the home page."""
         self._stop_predictor()
         self._reset_plot_buffers()
         self.session_mode = None
@@ -1072,6 +1095,7 @@ class EMGCollectorGUI:
         self._show_page("home")
 
     def _close_serial(self):
+        """Close the active serial connection if one is open."""
         if self.ser is not None:
             try:
                 self.ser.close()
@@ -1083,6 +1107,7 @@ class EMGCollectorGUI:
     # Controls rendering (left panel of collection page)
     # ---------------------------------------------------------------
     def _render_controls(self):
+        """Rebuild the collection controls for the current session mode."""
         for child in self.controls_holder.winfo_children():
             child.destroy()
         self.guided_session_labels_listbox = None
@@ -1094,6 +1119,7 @@ class EMGCollectorGUI:
         self.controls_canvas.yview_moveto(0.0)
 
     def _render_label_section(self, parent):
+        """Render gesture-label controls shared by collection workflows."""
         box = ttk.LabelFrame(parent, text="Gestures", padding=8)
         box.pack(fill="x", pady=(0, 10))
         labels = list_labels_for_mode("single")
@@ -1108,6 +1134,7 @@ class EMGCollectorGUI:
         ttk.Button(add_row, text="-", width=3, command=self._delete_label).pack(side="left", padx=(4, 0))
 
     def _render_single_controls(self):
+        """Render controls for manual and auto single-gesture capture."""
         parent = self.controls_holder
         self._render_label_section(parent)
 
@@ -1128,6 +1155,7 @@ class EMGCollectorGUI:
         ttk.Button(frame, text="Cancel", command=self._cancel_auto).grid(row=4, column=0, columnspan=2, sticky="we", pady=2)
 
     def _render_guided_controls(self):
+        """Render controls for the guided multi-label collection workflow."""
         parent = self.controls_holder
         self._render_label_section(parent)
 
@@ -1163,11 +1191,13 @@ class EMGCollectorGUI:
     # Label management
     # ---------------------------------------------------------------
     def _target_modes(self):
+        """Return the dataset modes whose labels can be edited right now."""
         if self.session_mode in ("session", "single"):
             return ["single"]
         return []
 
     def _add_label(self):
+        """Add a new gesture label to every editable target mode."""
         raw = self.new_label_var.get()
         for mode in self._target_modes():
             try:
@@ -1181,6 +1211,7 @@ class EMGCollectorGUI:
         self._render_controls()
 
     def _delete_label(self):
+        """Delete the currently selected gesture label from editable modes."""
         label = self.selected_label_var.get().strip()
         if not label:
             return
@@ -1199,6 +1230,7 @@ class EMGCollectorGUI:
     # Guided session helpers
     # ---------------------------------------------------------------
     def _guided_label_options(self):
+        """Return non-``rest`` labels that can be scheduled in guided sessions."""
         seen = set()
         labels = []
         for label in list_labels_for_mode("single"):
@@ -1209,11 +1241,13 @@ class EMGCollectorGUI:
         return labels
 
     def _get_guided_selected_labels(self):
+        """Return the labels currently selected in the guided-session listbox."""
         if self.guided_session_labels_listbox is None:
             return []
         return [self.guided_session_labels_listbox.get(i) for i in self.guided_session_labels_listbox.curselection()]
 
     def _refresh_guided_labels(self):
+        """Refresh guided-session label choices and select all by default."""
         if self.guided_session_labels_listbox is None:
             return
         self.guided_session_labels_listbox.delete(0, tk.END)
@@ -1222,6 +1256,7 @@ class EMGCollectorGUI:
         self.guided_session_labels_listbox.selection_set(0, tk.END)
 
     def _build_guided_tasks(self, labels):
+        """Expand guided-session settings into a linear task list."""
         single_reps = max(1, int(self.guided_single_repeats_var.get()))
         single_sec = max(0.5, float(self.guided_single_seconds_var.get()))
         single_rest_s = max(0.0, float(self.guided_single_rest_seconds_var.get()))
@@ -1284,6 +1319,7 @@ class EMGCollectorGUI:
         return tasks
 
     def _reset_guided_state(self):
+        """Clear all guided-session progress and transient state."""
         self.guided_session_active = False
         self.guided_session_auto = False
         self.guided_session_waiting = False
@@ -1297,12 +1333,14 @@ class EMGCollectorGUI:
     # Capture actions
     # ---------------------------------------------------------------
     def _reset_capture_state(self):
+        """Clear prepare/capture/autoplay state shared by collection workflows."""
         self.prepare_state = None
         self.active_capture = None
         self.auto_running = False
         self.auto_queue = []
 
     def _reset_plot_buffers(self):
+        """Clear rolling serial buffers and reset both live plots."""
         for ch in CHANNEL_NAMES:
             self.channel_buffers[ch]["time"].clear()
             self.channel_buffers[ch]["adc"].clear()
@@ -1321,9 +1359,11 @@ class EMGCollectorGUI:
         self._last_plot_refresh_at = 0.0
 
     def _current_channels(self):
+        """Return currently detected channels in stable order."""
         return [ch for ch in CHANNEL_NAMES if ch in self.detected_channels] or [DEFAULT_CHANNEL]
 
     def _start_prepare(self, label, duration, auto=False, capture_mode=None, guided=False, no_save=False, no_prepare=False):
+        """Start the pre-capture countdown for one queued capture task."""
         prep = 0.0 if no_prepare else max(0.0, float(self.prepare_seconds_var.get()))
         self.prepare_state = {
             "label": label, "duration": float(duration), "auto": auto,
@@ -1334,6 +1374,7 @@ class EMGCollectorGUI:
         self._log(f"Preparing capture: label={label}, duration={duration:.1f}s, prep={prep:.1f}s")
 
     def _begin_capture(self, label, duration, auto, capture_mode=None, guided=False, no_save=False):
+        """Enter active-recording state for one capture task."""
         self.prepare_state = None
         self.active_capture = {
             "label": label, "duration": float(duration), "auto": auto,
@@ -1345,6 +1386,7 @@ class EMGCollectorGUI:
         self._log(f"Capture started: label={label}, duration={duration:.1f}s, channels={self._current_channels()}")
 
     def _finish_capture(self):
+        """Finalize the active capture, write CSVs, and advance the workflow."""
         cap = self.active_capture
         self.active_capture = None
         if cap is None or not self.session_user:
@@ -1395,6 +1437,7 @@ class EMGCollectorGUI:
         self.status_var.set("Saved")
 
     def _finish_break(self):
+        """End a guided-session break and resume the queued workflow."""
         brk = self.guided_break_state
         self.guided_break_state = None
         if brk is None:
@@ -1429,6 +1472,7 @@ class EMGCollectorGUI:
         self.status_var.set("Ready")
 
     def _queue_task(self, task, auto=False):
+        """Queue or immediately start one guided/manual task descriptor."""
         if task.get("capture_mode") == "break":
             self.guided_break_state = {
                 "auto": auto,
@@ -1444,6 +1488,7 @@ class EMGCollectorGUI:
 
     # --- single ---
     def _start_single_manual(self):
+        """Start one manually triggered single-gesture capture."""
         if self.prepare_state or self.active_capture or self.auto_running:
             return
         label = self.selected_label_var.get()
@@ -1451,6 +1496,7 @@ class EMGCollectorGUI:
         self._start_prepare(label, dur, auto=False, capture_mode="single")
 
     def _start_single_auto(self):
+        """Queue repeated captures for the currently selected single gesture."""
         if self.prepare_state or self.active_capture or self.auto_running:
             return
         count = max(1, int(self.single_auto_count_var.get()))
@@ -1462,6 +1508,7 @@ class EMGCollectorGUI:
 
     # --- guided ---
     def _start_guided_auto(self):
+        """Start the guided workflow in automatic mode."""
         if self.prepare_state or self.active_capture or self.auto_running or self.guided_session_active:
             return
         labels = self._get_guided_selected_labels()
@@ -1478,6 +1525,7 @@ class EMGCollectorGUI:
         self._queue_task(self.auto_queue[0], auto=True)
 
     def _start_guided_step(self):
+        """Advance the guided workflow by one manual step."""
         # If in break, Space ends the break and resumes
         if self.guided_break_state is not None:
             self._finish_break()
@@ -1503,11 +1551,13 @@ class EMGCollectorGUI:
         self._queue_task(dict(task, guided=True), auto=False)
 
     def _cancel_guided(self):
+        """Cancel the guided workflow and reset its transient state."""
         self._reset_capture_state()
         self._reset_guided_state()
         self.status_var.set("Idle")
 
     def _cancel_auto(self):
+        """Cancel queued auto-capture work and return to idle."""
         self._reset_capture_state()
         if self.session_mode == "session":
             self._reset_guided_state()
@@ -1517,6 +1567,7 @@ class EMGCollectorGUI:
     # Training
     # ---------------------------------------------------------------
     def _refresh_training_lists(self):
+        """Refresh training-page channel, user, and label selectors."""
         mode = self.training_mode_var.get()
         if self.home_train_channel_listbox:
             chs = list_available_channels(mode)
@@ -1535,6 +1586,7 @@ class EMGCollectorGUI:
         return [self._train_channel_ids[i] for i in indices if i < len(self._train_channel_ids)]
 
     def _on_train_channel_changed(self):
+        """Refresh trainable users after the channel selection changes."""
         mode = self.training_mode_var.get()
         sel_chs = self._get_selected_train_channels()
         users = list_available_users(mode, selected_channels=sel_chs or None)
@@ -1546,6 +1598,7 @@ class EMGCollectorGUI:
         self._on_train_user_changed()
 
     def _on_train_user_changed(self):
+        """Refresh trainable labels after the selected users change."""
         mode = self.training_mode_var.get()
         sel_chs = self._get_selected_train_channels()
         sel_users = [self.home_train_user_listbox.get(i) for i in self.home_train_user_listbox.curselection()] if self.home_train_user_listbox else None
@@ -1557,6 +1610,7 @@ class EMGCollectorGUI:
             self.home_train_label_listbox.selection_set(0, tk.END)
 
     def _set_training_report(self, text):
+        """Replace the training-report text widget contents."""
         self.training_report_text.configure(state="normal")
         self.training_report_text.delete("1.0", "end")
         self.training_report_text.insert("1.0", text)
@@ -1565,10 +1619,12 @@ class EMGCollectorGUI:
         self.root.update_idletasks()
 
     def _refresh_all_training(self):
+        """Refresh every training and fine-tuning selector on the page."""
         self._refresh_training_lists()
         self._refresh_finetune_lists()
 
     def _train_model(self):
+        """Train a new base model from the current training-page selections."""
         mode = self.training_mode_var.get()
         name = self.model_name_var.get().strip()
         if not name:
@@ -1639,6 +1695,7 @@ class EMGCollectorGUI:
         messagebox.showinfo("Done", f"Base model saved: {result['model_name']}")
 
     def _refresh_finetune_lists(self):
+        """Refresh the list of saved base models available for continuation."""
         mode = self.training_mode_var.get()
         sel_chs = self._get_selected_train_channels() or []
         models = []
@@ -1653,6 +1710,7 @@ class EMGCollectorGUI:
         self._on_finetune_base_changed()
 
     def _on_finetune_base_changed(self):
+        """Update the suggested continued-model name when the base model changes."""
         base_name = self.ft_base_var.get().strip()
         current_name = self.ft_new_model_name_var.get().strip()
         previous_default = f"{self._last_finetune_base_name}_continued" if self._last_finetune_base_name else ""
@@ -1661,6 +1719,7 @@ class EMGCollectorGUI:
         self._last_finetune_base_name = base_name
 
     def _run_finetune(self):
+        """Train a new model by combining a saved base model with added users."""
         mode = self.training_mode_var.get()
         base_name = self.ft_base_var.get().strip()
         new_name = self.ft_new_model_name_var.get().strip()
@@ -1748,6 +1807,7 @@ class EMGCollectorGUI:
     # Testing
     # ---------------------------------------------------------------
     def _refresh_test_models(self):
+        """Refresh the list of saved models that can be used for live testing."""
         mode = self.testing_mode_var.get()
         # List models across ALL channel combinations
         models = list_saved_models(mode, selected_channels=list(CHANNEL_NAMES))
@@ -1760,6 +1820,7 @@ class EMGCollectorGUI:
         self.test_model_info_var.set("")
 
     def _run_test(self):
+        """Load the selected model bundle and start live prediction."""
         mode = self.testing_mode_var.get()
         name = self.model_choice_var.get().strip()
         if not name:
@@ -2214,6 +2275,7 @@ class EMGCollectorGUI:
             messagebox.showerror("Save failed", str(exc))
 
     def _stop_predictor(self):
+        """Clear the active live predictor and reset prediction display state."""
         self.predictor = None
         self.active_model_name = None
         self.prediction_hold_until = 0.0
@@ -2223,11 +2285,13 @@ class EMGCollectorGUI:
         self.prediction_display_var.set("--")
 
     def _clear_prediction_history(self):
+        """Remove all rows from the testing-page prediction history table."""
         if self.prediction_history_tree is None:
             return
         self.prediction_history_tree.delete(*self.prediction_history_tree.get_children())
 
     def _append_prediction_history(self, gesture, confidence):
+        """Insert one prediction event into the testing-page history table."""
         if self.prediction_history_tree is None:
             return
         timestamp = time.strftime("%H:%M:%S")
@@ -2392,6 +2456,7 @@ class EMGCollectorGUI:
     # Capture history (right panel)
     # ---------------------------------------------------------------
     def _refresh_capture_list(self):
+        """Refresh the right-side capture summary for the current collection user."""
         if self.capture_tree is None:
             return
         self.capture_tree.delete(*self.capture_tree.get_children())
@@ -2415,6 +2480,7 @@ class EMGCollectorGUI:
         self.data_summary_var.set(f"{len(records)} captures for {self.session_user}")
 
     def _clear_user_data(self):
+        """Delete all stored captures for the active user after confirmation."""
         if self.prepare_state or self.active_capture or self.auto_running:
             messagebox.showerror("Busy", "Stop the current capture first.")
             return
@@ -2432,6 +2498,7 @@ class EMGCollectorGUI:
     # Serial polling & plot
     # ---------------------------------------------------------------
     def poll_serial(self):
+        """Drive serial I/O, capture timers, prediction, and periodic UI refreshes."""
         try:
             now = time.time()
             if self.ser is not None:
@@ -2458,6 +2525,7 @@ class EMGCollectorGUI:
         self.root.after(SERIAL_POLL_MS, self.poll_serial)
 
     def _read_serial(self):
+        """Drain the serial port, parse samples, and append them to live buffers."""
         got_samples = False
         while self.ser.in_waiting:
             raw = self.ser.readline().decode("utf-8", errors="ignore")
@@ -2495,6 +2563,7 @@ class EMGCollectorGUI:
             self._plot_dirty = True
 
     def _trim_buffers(self):
+        """Trim rolling channel buffers down to the plot window length."""
         for ch in CHANNEL_NAMES:
             buf = self.channel_buffers[ch]
             t_buf = buf["time"]
@@ -2507,6 +2576,7 @@ class EMGCollectorGUI:
                 buf["voltage"].popleft()
 
     def _advance_capture(self):
+        """Advance prepare/capture timers and finalize captures when they expire."""
         if self.ser is None or time.time() < self.serial_ready_at:
             return
         now = time.time()
@@ -2522,6 +2592,7 @@ class EMGCollectorGUI:
                 self._finish_capture()
 
     def _advance_prediction(self):
+        """Run live prediction on the current rolling buffers when due."""
         if self.predictor is None:
             return
         channels = self.predictor.input_channels()
@@ -2597,6 +2668,7 @@ class EMGCollectorGUI:
                 self._log(f"Debug auto-capture error: {exc}", level="ERROR")
 
     def _detect_rest(self):
+        """Return ``True`` when recent signal energy is low enough to look idle."""
         buf = self.channel_buffers[DEFAULT_CHANNEL]
         if len(buf["voltage"]) < 20:
             return False
@@ -2604,6 +2676,7 @@ class EMGCollectorGUI:
         return float(np.mean(np.abs(signal))) < REST_THRESHOLD
 
     def _refresh_plot(self):
+        """Redraw the active live plot using the current channel buffers."""
         # choose which plot to update based on current page
         if self.session_mode == "test":
             ax = self.test_plot_axis
@@ -2690,6 +2763,7 @@ class EMGCollectorGUI:
         return "  |  ".join(parts)
 
     def _refresh_banner(self):
+        """Update the large instruction banner for the current collection state."""
         if self.session_mode not in ("single", "session"):
             return
         now = time.time()
@@ -2806,6 +2880,7 @@ class EMGCollectorGUI:
     # Key bindings
     # ---------------------------------------------------------------
     def _on_key_press(self, event):
+        """Handle collection-page keyboard shortcuts."""
         if self.session_mode not in ("single", "session"):
             return
         if self.session_mode == "session":
@@ -2823,6 +2898,7 @@ class EMGCollectorGUI:
     # USER DATA PAGE (browse captures & plot EMG)
     # ---------------------------------------------------------------
     def _build_user_data_page(self):
+        """Build the user-data browser for stored capture inspection."""
         page = ttk.Frame(self.container)
         self.pages["user_data"] = page
 
@@ -2941,10 +3017,12 @@ class EMGCollectorGUI:
         self.ud_canvas.get_tk_widget().pack(fill="both", expand=True, padx=4, pady=4)
 
     def _go_user_data(self):
+        """Open the user-data browser after refreshing its user list."""
         self._ud_refresh_users()
         self._show_page("user_data")
 
     def _ud_refresh_users(self):
+        """Refresh the user-data browser's user list and clear stale selections."""
         users = sorted(list_available_users("single"))
         self.ud_user_listbox.delete(0, "end")
         for u in users:
@@ -2964,6 +3042,7 @@ class EMGCollectorGUI:
         self.ud_canvas.draw_idle()
 
     def _ud_on_user_select(self, _event=None):
+        """Load capture rows for the selected user into the browser table."""
         sel = self.ud_user_listbox.curselection()
         if not sel:
             return
@@ -2995,6 +3074,7 @@ class EMGCollectorGUI:
         self.ud_canvas.draw_idle()
 
     def _ud_on_entry_select(self, _event=None):
+        """Render the capture currently selected in the browser table."""
         sel = self.ud_tree.selection()
         if not sel:
             return
@@ -3005,6 +3085,7 @@ class EMGCollectorGUI:
         self._ud_render_selected_capture()
 
     def _set_ud_process_summary(self, text):
+        """Replace the processing-summary text shown in the user-data browser."""
         self.ud_process_summary.configure(state="normal")
         self.ud_process_summary.delete("1.0", "end")
         if text:
@@ -3012,6 +3093,7 @@ class EMGCollectorGUI:
         self.ud_process_summary.configure(state="disabled")
 
     def _ud_render_selected_capture(self):
+        """Prepare and render a processed preview for the selected capture."""
         rec = self.ud_selected_record
         if rec is None:
             return
@@ -3038,6 +3120,7 @@ class EMGCollectorGUI:
         self._ud_draw_capture_preview(preview)
 
     def _ud_redraw_current_capture(self):
+        """Redraw the current capture preview using the selected view mode."""
         if self.ud_last_preview is not None:
             self._ud_draw_capture_preview(self.ud_last_preview)
 
@@ -3098,6 +3181,7 @@ class EMGCollectorGUI:
             axis.legend(loc="upper right", fontsize=8)
 
     def _ud_draw_capture_preview(self, preview):
+        """Draw the main preview, optional compare preview, and summary text."""
         # draw main on primary axis
         main_prefix = "MAIN: " if self.ud_compare_mode else ""
         self._ud_plot_preview_on_axis(preview, self.ud_plot_axis, title_prefix=main_prefix)
@@ -3199,12 +3283,14 @@ class EMGCollectorGUI:
             self.ud_compare_axis.set_title("Compare")
 
     def _ud_toggle_compare(self):
+        """Enter or exit compare mode in the user-data browser."""
         if self.ud_compare_mode:
             self._ud_exit_compare()
         else:
             self._ud_enter_compare()
 
     def _ud_enter_compare(self):
+        """Prompt for a second capture and enter compare mode."""
         if self.ud_selected_record is None:
             messagebox.showinfo(
                 "Select a main capture first",
@@ -3237,6 +3323,7 @@ class EMGCollectorGUI:
         self._ud_render_selected_capture()
 
     def _ud_exit_compare(self):
+        """Leave compare mode and restore the single-preview layout."""
         self.ud_compare_mode = False
         self.ud_compare_record = None
         self.ud_compare_user = None
@@ -3350,6 +3437,7 @@ class EMGCollectorGUI:
         return result_holder["value"]
 
     def _ud_export_processed_capture(self):
+        """Export processed CSV and feature summary files for the selected capture."""
         if self.ud_selected_record is None:
             messagebox.showinfo("Select capture", "Click a capture entry first.")
             return
@@ -3375,6 +3463,7 @@ class EMGCollectorGUI:
         )
 
     def _ud_delete_capture(self):
+        """Delete the selected capture record from disk."""
         sel = self.ud_tree.selection()
         if not sel:
             messagebox.showinfo("Select capture", "Click a capture entry first.")
@@ -3401,6 +3490,7 @@ class EMGCollectorGUI:
             self._ud_on_user_select()
 
     def _ud_delete_user(self):
+        """Delete all stored captures for the selected browser user."""
         user_sel = self.ud_user_listbox.curselection()
         if not user_sel:
             messagebox.showinfo("Select user", "Click a user in the list first.")
@@ -3418,6 +3508,7 @@ class EMGCollectorGUI:
     # Misc
     # ---------------------------------------------------------------
     def refresh_ports(self):
+        """Refresh available serial ports and choose a reasonable default."""
         ports = discover_serial_ports(include_pseudo=True)
         current = self.port_var.get().strip()
         if current and current not in ports:
@@ -3434,6 +3525,7 @@ class EMGCollectorGUI:
             self.port_var.set(preferred)
 
     def on_close(self):
+        """Tear down serial/capture state and close the Tk window."""
         self._reset_capture_state()
         self._reset_guided_state()
         self._close_serial()
@@ -3441,6 +3533,7 @@ class EMGCollectorGUI:
 
 
 def main():
+    """Launch the Tkinter application."""
     root = tk.Tk()
     EMGCollectorGUI(root)
     root.mainloop()
