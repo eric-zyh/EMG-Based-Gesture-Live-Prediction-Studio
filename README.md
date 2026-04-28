@@ -3,6 +3,7 @@
 **A Tkinter desktop app for recording surface-EMG from an Arduino, training scikit-learn classifiers on hand gestures, and running live gesture prediction — all behind a one-click launcher.**
 
 EMGesture gives you the full loop: connect an Arduino that streams analog EMG, capture labeled gesture data through a guided GUI, train a classifier against your own body, then drop into a live testing view that classifies your gestures in real time. No notebooks, no command-line ML, no prior ML setup on your machine — a single `launch.py` creates a virtualenv, installs dependencies, and opens the GUI on first run.
+demo:  https://drive.google.com/file/d/1WOej3qdWAvpuS9NjVvaULokZkIfmEpUL/view?usp=sharing
 
 ---
 
